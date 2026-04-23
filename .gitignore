@@ -7,7 +7,7 @@ node_modules/
 npm-debug.log*
 
 # Environment files (never commit real secrets)
-.env
+
 !.env.example
 
 # Build artifacts

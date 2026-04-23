@@ -1,0 +1,208 @@
+version: "3.9"
+
+# ══════════════════════════════════════════════════════════════
+#  Training Management System — Full Stack Docker Compose
+#  Run: docker compose up --build -d
+# ══════════════════════════════════════════════════════════════
+
+x-mongo-healthcheck: &mongo-healthcheck
+  test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 20s
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - tms-network
+
+services:
+
+  # ── MongoDB instances (one per service) ──────────────────────
+
+  auth-mongo:
+    <<: *service-defaults
+    image: mongo:7.0-jammy
+    container_name: tms-auth-mongo
+    volumes:
+      - auth-mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: auth_db
+    healthcheck: *mongo-healthcheck
+    ports:
+      - "27017:27017"
+
+  user-mongo:
+    <<: *service-defaults
+    image: mongo:7.0-jammy
+    container_name: tms-user-mongo
+    volumes:
+      - user-mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: user_db
+    healthcheck: *mongo-healthcheck
+    ports:
+      - "27018:27017"
+
+  training-mongo:
+    <<: *service-defaults
+    image: mongo:7.0-jammy
+    container_name: tms-training-mongo
+    volumes:
+      - training-mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: training_db
+    healthcheck: *mongo-healthcheck
+    ports:
+      - "27019:27017"
+
+  attendance-mongo:
+    <<: *service-defaults
+    image: mongo:7.0-jammy
+    container_name: tms-attendance-mongo
+    volumes:
+      - attendance-mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: attendance_db
+    healthcheck: *mongo-healthcheck
+    ports:
+      - "27020:27017"
+
+  # ── Backend microservices ─────────────────────────────────────
+
+  auth-service:
+    <<: *service-defaults
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: tms-auth-service
+    env_file:
+      - ./services/auth-service/.env
+    environment:
+      MONGO_URI: mongodb://auth-mongo:27017/auth_db
+    depends_on:
+      auth-mongo:
+        condition: service_healthy
+    ports:
+      - "4001:4001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4001/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  user-service:
+    <<: *service-defaults
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: tms-user-service
+    env_file:
+      - ./services/user-service/.env
+    environment:
+      MONGO_URI: mongodb://user-mongo:27017/user_db
+      AUTH_SERVICE_URL: http://auth-service:4001
+    depends_on:
+      user-mongo:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    ports:
+      - "4002:4002"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4002/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  training-service:
+    <<: *service-defaults
+    build:
+      context: ./services/training-service
+      dockerfile: Dockerfile
+    container_name: tms-training-service
+    env_file:
+      - ./services/training-service/.env
+    environment:
+      MONGO_URI: mongodb://training-mongo:27017/training_db
+      AUTH_SERVICE_URL: http://auth-service:4001
+      USER_SERVICE_URL: http://user-service:4002
+    depends_on:
+      training-mongo:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    ports:
+      - "4003:4003"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4003/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  attendance-service:
+    <<: *service-defaults
+    build:
+      context: ./services/attendance-service
+      dockerfile: Dockerfile
+    container_name: tms-attendance-service
+    env_file:
+      - ./services/attendance-service/.env
+    environment:
+      MONGO_URI: mongodb://attendance-mongo:27017/attendance_db
+      AUTH_SERVICE_URL: http://auth-service:4001
+      USER_SERVICE_URL: http://user-service:4002
+      TRAINING_SERVICE_URL: http://training-service:4003
+    depends_on:
+      attendance-mongo:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      training-service:
+        condition: service_healthy
+    ports:
+      - "4004:4004"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4004/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Frontend ──────────────────────────────────────────────────
+
+  frontend:
+    <<: *service-defaults
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tms-frontend
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      training-service:
+        condition: service_healthy
+      attendance-service:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+# ── Volumes ────────────────────────────────────────────────────
+volumes:
+  auth-mongo-data:
+  user-mongo-data:
+  training-mongo-data:
+  attendance-mongo-data:
+
+# ── Network ────────────────────────────────────────────────────
+networks:
+  tms-network:
+    driver: bridge

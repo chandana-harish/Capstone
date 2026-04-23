@@ -1,0 +1,22 @@
+# Git
+.git/
+*.log
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Environment files (never commit real secrets)
+.env
+!.env.example
+
+# Build artifacts
+dist/
+build/
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db

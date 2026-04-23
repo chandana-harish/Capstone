@@ -1,7 +1,7 @@
 version: "3.9"
 
 # ══════════════════════════════════════════════════════════════
-#  Training Management System — Docker Compose (NO HEALTHCHECK)
+#  Training Management System — Docker Compose (FIXED)
 # ══════════════════════════════════════════════════════════════
 
 x-service-defaults: &service-defaults
@@ -17,6 +17,7 @@ services:
     <<: *service-defaults
     image: mongo:7.0-jammy
     container_name: tms-auth-mongo
+    command: ["mongod", "--quiet"]
     volumes:
       - auth-mongo-data:/data/db
     environment:
@@ -28,6 +29,7 @@ services:
     <<: *service-defaults
     image: mongo:7.0-jammy
     container_name: tms-user-mongo
+    command: ["mongod", "--quiet"]
     volumes:
       - user-mongo-data:/data/db
     environment:
@@ -39,6 +41,7 @@ services:
     <<: *service-defaults
     image: mongo:7.0-jammy
     container_name: tms-training-mongo
+    command: ["mongod", "--quiet"]
     volumes:
       - training-mongo-data:/data/db
     environment:
@@ -50,6 +53,7 @@ services:
     <<: *service-defaults
     image: mongo:7.0-jammy
     container_name: tms-attendance-mongo
+    command: ["mongod", "--quiet"]
     volumes:
       - attendance-mongo-data:/data/db
     environment:
@@ -63,7 +67,6 @@ services:
     <<: *service-defaults
     build:
       context: ./services/auth-service
-      dockerfile: Dockerfile
     container_name: tms-auth-service
     env_file:
       - ./services/auth-service/.env
@@ -76,7 +79,6 @@ services:
     <<: *service-defaults
     build:
       context: ./services/user-service
-      dockerfile: Dockerfile
     container_name: tms-user-service
     env_file:
       - ./services/user-service/.env
@@ -90,7 +92,6 @@ services:
     <<: *service-defaults
     build:
       context: ./services/training-service
-      dockerfile: Dockerfile
     container_name: tms-training-service
     env_file:
       - ./services/training-service/.env
@@ -105,7 +106,6 @@ services:
     <<: *service-defaults
     build:
       context: ./services/attendance-service
-      dockerfile: Dockerfile
     container_name: tms-attendance-service
     env_file:
       - ./services/attendance-service/.env
@@ -123,7 +123,6 @@ services:
     <<: *service-defaults
     build:
       context: ./frontend
-      dockerfile: Dockerfile
     container_name: tms-frontend
     ports:
       - "3000:80"

@@ -1,16 +1,8 @@
 version: "3.9"
 
 # ══════════════════════════════════════════════════════════════
-#  Training Management System — Full Stack Docker Compose
-#  Run: docker compose up --build -d
+#  Training Management System — Docker Compose (NO HEALTHCHECK)
 # ══════════════════════════════════════════════════════════════
-
-x-mongo-healthcheck: &mongo-healthcheck
-  test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-  interval: 15s
-  timeout: 5s
-  retries: 5
-  start_period: 20s
 
 x-service-defaults: &service-defaults
   restart: unless-stopped
@@ -19,7 +11,7 @@ x-service-defaults: &service-defaults
 
 services:
 
-  # ── MongoDB instances (one per service) ──────────────────────
+  # ── MongoDB instances ──────────────────────────────────────
 
   auth-mongo:
     <<: *service-defaults
@@ -29,7 +21,6 @@ services:
       - auth-mongo-data:/data/db
     environment:
       MONGO_INITDB_DATABASE: auth_db
-    healthcheck: *mongo-healthcheck
     ports:
       - "27017:27017"
 
@@ -41,7 +32,6 @@ services:
       - user-mongo-data:/data/db
     environment:
       MONGO_INITDB_DATABASE: user_db
-    healthcheck: *mongo-healthcheck
     ports:
       - "27018:27017"
 
@@ -53,7 +43,6 @@ services:
       - training-mongo-data:/data/db
     environment:
       MONGO_INITDB_DATABASE: training_db
-    healthcheck: *mongo-healthcheck
     ports:
       - "27019:27017"
 
@@ -65,11 +54,10 @@ services:
       - attendance-mongo-data:/data/db
     environment:
       MONGO_INITDB_DATABASE: attendance_db
-    healthcheck: *mongo-healthcheck
     ports:
       - "27020:27017"
 
-  # ── Backend microservices ─────────────────────────────────────
+  # ── Backend services ───────────────────────────────────────
 
   auth-service:
     <<: *service-defaults
@@ -81,17 +69,8 @@ services:
       - ./services/auth-service/.env
     environment:
       MONGO_URI: mongodb://auth-mongo:27017/auth_db
-    depends_on:
-      auth-mongo:
-        condition: service_healthy
     ports:
       - "4001:4001"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4001/health"]
-      interval: 20s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
 
   user-service:
     <<: *service-defaults
@@ -104,19 +83,8 @@ services:
     environment:
       MONGO_URI: mongodb://user-mongo:27017/user_db
       AUTH_SERVICE_URL: http://auth-service:4001
-    depends_on:
-      user-mongo:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
     ports:
       - "4002:4002"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4002/health"]
-      interval: 20s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
 
   training-service:
     <<: *service-defaults
@@ -130,21 +98,8 @@ services:
       MONGO_URI: mongodb://training-mongo:27017/training_db
       AUTH_SERVICE_URL: http://auth-service:4001
       USER_SERVICE_URL: http://user-service:4002
-    depends_on:
-      training-mongo:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-      user-service:
-        condition: service_healthy
     ports:
       - "4003:4003"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4003/health"]
-      interval: 20s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
 
   attendance-service:
     <<: *service-defaults
@@ -159,23 +114,10 @@ services:
       AUTH_SERVICE_URL: http://auth-service:4001
       USER_SERVICE_URL: http://user-service:4002
       TRAINING_SERVICE_URL: http://training-service:4003
-    depends_on:
-      attendance-mongo:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-      training-service:
-        condition: service_healthy
     ports:
       - "4004:4004"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4004/health"]
-      interval: 20s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
 
-  # ── Frontend ──────────────────────────────────────────────────
+  # ── Frontend ────────────────────────────────────────────────
 
   frontend:
     <<: *service-defaults
@@ -183,26 +125,19 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: tms-frontend
-    depends_on:
-      auth-service:
-        condition: service_healthy
-      user-service:
-        condition: service_healthy
-      training-service:
-        condition: service_healthy
-      attendance-service:
-        condition: service_healthy
     ports:
       - "3000:80"
 
-# ── Volumes ────────────────────────────────────────────────────
+# ── Volumes ───────────────────────────────────────────────────
+
 volumes:
   auth-mongo-data:
   user-mongo-data:
   training-mongo-data:
   attendance-mongo-data:
 
-# ── Network ────────────────────────────────────────────────────
+# ── Network ───────────────────────────────────────────────────
+
 networks:
   tms-network:
     driver: bridge
